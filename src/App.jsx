@@ -297,23 +297,41 @@ function App() {
       };
     }
 
-    const response = await fetch(fetchUrl, {
-      method: 'POST',
-      headers: fetchHeaders,
-      body: JSON.stringify({
+    // ─── Preparar payload condicional ─────────────────────────────────────────
+    // Limpiar estrictamente los mensajes a solo { role, content } para evitar el Error 400
+    const cleanMessages = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...messages.slice(-20).map(msg => ({ role: msg.role, content: msg.content })),
+      { role: 'user', content: fullUserContent }
+    ];
+
+    let bodyPayload;
+    if (provider === 'google') {
+      // Gemini es estricto y rechaza parámetros extra en este endpoint
+      bodyPayload = {
         model: selectedModel,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          ...messages.slice(-20).map(msg => ({ role: msg.role, content: msg.content })),
-          { role: 'user', content: fullUserContent }
-        ],
+        messages: cleanMessages,
+        stream: true
+      };
+    } else {
+      // NVIDIA acepta más parámetros para ajuste fino
+      bodyPayload = {
+        model: selectedModel,
+        messages: cleanMessages,
         temperature: 0.7,
         top_p: 0.9,
         max_tokens: 2048,
         stream: true
-      }),
+      };
+    }
+
+    const response = await fetch(fetchUrl, {
+      method: 'POST',
+      headers: fetchHeaders,
+      body: JSON.stringify(bodyPayload),
       signal: controller.signal
     });
+
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
