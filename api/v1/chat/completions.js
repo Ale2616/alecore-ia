@@ -1,39 +1,62 @@
-export default async function handler(req, res) {
-  // CORS headers — allow frontend to call this endpoint
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+export const config = {
+  runtime: 'edge',
+};
 
-  // Handle preflight OPTIONS request
+export default async function handler(req) {
+  // CORS preflight
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
+      },
+    });
   }
 
-  // Solo permitir POST
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   try {
-    // Forward request to NVIDIA API
+    const body = await req.text(); // Read body as text
+
     const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': req.headers.authorization || '',
+        'Authorization': req.headers.get('authorization') || '',
         'Accept': 'application/json',
       },
-      body: JSON.stringify(req.body),
+      body: body,
     });
 
-    const data = await response.json();
+    // Return the stream directly using Edge runtime
+    return new Response(response.body, {
+      status: response.status,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': response.headers.get('content-type') || 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+      },
+    });
 
-    return res.status(response.status).json(data);
   } catch (error) {
     console.error('Proxy error:', error);
-    return res.status(500).json({
+    return new Response(JSON.stringify({
       error: 'Error connecting to NVIDIA API',
       detail: { message: error.message }
+    }), {
+      status: 500,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+      }
     });
   }
 }

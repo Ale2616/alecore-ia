@@ -366,19 +366,22 @@ function App() {
       const decoder = new TextDecoder('utf-8');
       let done = false;
       let assistantMessageContent = '';
+      let buffer = '';
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
         if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          // Los chunks de Server-Sent Events (SSE) vienen separados por \n\n
-          const lines = chunk.split('\n');
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          // Guardar el último elemento en el buffer (puede estar incompleto)
+          buffer = lines.pop() || '';
           
           for (const line of lines) {
-            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
               try {
-                const data = JSON.parse(line.substring(6));
+                const data = JSON.parse(trimmedLine.substring(6));
                 const delta = data.choices?.[0]?.delta?.content || '';
                 assistantMessageContent += delta;
                 
