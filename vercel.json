@@ -14,5 +14,10 @@
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/v1/chat/completions.js": {
+      "maxDuration": 60
+    }
+  }
 }

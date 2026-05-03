@@ -1,61 +1,85 @@
-export default async function handler(req, res) {
-  // CORS preflight
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+// =============================================================================
+// EDGE RUNTIME PROXY — Solves the Vercel 10-second Serverless timeout
+// Edge functions support 30s+ execution and native streaming.
+// =============================================================================
 
+export const config = { runtime: 'edge' };
+
+export default async function handler(req) {
+  // CORS headers used in every response
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
+  };
+
+  // CORS preflight
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   try {
-    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': req.headers.authorization || '',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(req.body),
-    });
+    const body = await req.json();
+    const isStreaming = body.stream === true;
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      return res.status(response.status).send(errorData);
-    }
-
-    // Configurar headers para Server-Sent Events (SSE)
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    
-    // Si la respuesta no tiene body, terminar
-    if (!response.body) {
-      return res.end();
-    }
-
-    // Usar el lector nativo del Response body
-    const reader = response.body.getReader();
-    
-    // Bucle para leer el stream y enviarlo al cliente chunk por chunk
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        res.end();
-        break;
+    const nvidiaResponse = await fetch(
+      'https://integrate.api.nvidia.com/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: req.headers.get('authorization') || '',
+          Accept: isStreaming ? 'text/event-stream' : 'application/json',
+        },
+        body: JSON.stringify(body),
       }
-      res.write(value);
+    );
+
+    if (!nvidiaResponse.ok) {
+      const errorText = await nvidiaResponse.text();
+      return new Response(errorText, {
+        status: nvidiaResponse.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-  } catch (error) {
-    console.error('Proxy error:', error);
-    return res.status(500).json({
-      error: 'Error connecting to NVIDIA API',
-      detail: { message: error.message }
+    // ----- Non-streaming: return JSON directly -----
+    if (!isStreaming) {
+      const data = await nvidiaResponse.text();
+      return new Response(data, {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ----- Streaming: pipe the SSE body straight through -----
+    // This keeps the connection alive chunk-by-chunk, preventing timeouts.
+    return new Response(nvidiaResponse.body, {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+      },
     });
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        error: 'Error connecting to NVIDIA API',
+        detail: { message: error.message },
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 }

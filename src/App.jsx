@@ -313,7 +313,7 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${NVIDIA_API_KEY}`,
-          'Accept': 'application/json'
+          'Accept': 'text/event-stream'
         },
         body: JSON.stringify({
           model: selectedModel,
@@ -342,11 +342,15 @@ function App() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail?.message ||
-          `Error ${response.status}: ${response.statusText}`
-        );
+        const errorText = await response.text().catch(() => '');
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.detail?.message || errorData.detail || errorData.error?.message || errorMessage;
+        } catch {
+          if (errorText) errorMessage = errorText;
+        }
+        throw new Error(errorMessage);
       }
 
       // Crear el mensaje inicial vacío para el asistente
@@ -383,13 +387,38 @@ function App() {
                 // Actualizar el último mensaje en tiempo real
                 setMessages(prev => {
                   const newMessages = [...prev];
-                  newMessages[newMessages.length - 1].content = assistantMessageContent;
+                  newMessages[newMessages.length - 1] = {
+                    ...newMessages[newMessages.length - 1],
+                    content: assistantMessageContent
+                  };
                   return newMessages;
                 });
               } catch (e) {
                 console.warn('Error parsing stream chunk', e);
               }
             }
+          }
+        }
+      }
+
+      // Flush remaining buffer after stream ends
+      if (buffer.trim()) {
+        const trimmedLine = buffer.trim();
+        if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
+          try {
+            const data = JSON.parse(trimmedLine.substring(6));
+            const delta = data.choices?.[0]?.delta?.content || '';
+            assistantMessageContent += delta;
+            setMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1] = {
+                ...newMessages[newMessages.length - 1],
+                content: assistantMessageContent
+              };
+              return newMessages;
+            });
+          } catch (e) {
+            // Final chunk may be incomplete, ignore
           }
         }
       }
