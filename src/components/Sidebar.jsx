@@ -5,11 +5,15 @@ import {
   Trash2,
   Download,
   X,
-  Sparkles
+  Sparkles,
+  Cpu,
+  Check
 } from 'lucide-react';
+import { MODELS } from './SettingsModal';
 
 /**
- * Sidebar - Drawer lateral con acciones del chat
+ * Sidebar - Drawer lateral con selector de modelos integrado + acciones del chat.
+ * Diseñado para móvil: contiene todo lo que el usuario necesita en un solo lugar.
  */
 const Sidebar = ({
   isOpen,
@@ -17,8 +21,16 @@ const Sidebar = ({
   onNewChat,
   onClearChat,
   onExportChat,
-  messageCount = 0
+  messageCount = 0,
+  selectedModel,
+  onModelChange,
 }) => {
+  // Seleccionar modelo y cerrar sidebar
+  const handleModelSelect = (modelValue) => {
+    onModelChange(modelValue);
+    onToggle(); // Cierra el sidebar automáticamente
+  };
+
   return (
     <>
       {/* Overlay */}
@@ -64,23 +76,78 @@ const Sidebar = ({
             </button>
           </div>
 
-          {/* Stats */}
-          <div className="flex-1 px-4 overflow-y-auto scrollbar-thin">
-            <div className="text-xs font-medium text-surface-500 uppercase tracking-wider mb-3">
-              Chat actual
+          {/* Scrollable content */}
+          <div className="flex-1 px-4 overflow-y-auto scrollbar-thin space-y-4">
+
+            {/* ─── Model selector ─── */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Cpu className="w-3.5 h-3.5 text-accent-400" />
+                <span className="text-xs font-medium text-surface-500 uppercase tracking-wider">
+                  Modelo de IA
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {MODELS.map((model) => {
+                  const isSelected = selectedModel === model.value;
+                  const Icon = model.icon;
+
+                  return (
+                    <button
+                      key={model.value}
+                      onClick={() => handleModelSelect(model.value)}
+                      className={`w-full text-left p-3 rounded-xl border transition-all duration-200
+                                 ${isSelected
+                                   ? 'border-accent-500/60 bg-accent-500/10'
+                                   : 'border-surface-700/30 bg-surface-800/30 hover:border-surface-600/50 hover:bg-surface-700/30'
+                                 }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
+                                        ${isSelected
+                                          ? 'bg-accent-500/20 text-accent-400'
+                                          : 'bg-surface-700/50 text-surface-400'
+                                        }`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-sm font-medium block
+                                           ${isSelected ? 'text-accent-300' : 'text-surface-200'}`}>
+                            {model.label}
+                          </span>
+                          <span className="text-[10px] text-surface-500 block truncate">
+                            {model.provider}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <Check className="w-4 h-4 text-accent-400 flex-shrink-0" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-surface-800/40 border border-surface-700/30">
-              <div className="flex items-center gap-2 mb-2">
-                <MessageSquare className="w-4 h-4 text-accent-400" />
-                <span className="text-sm text-surface-200">Conversación activa</span>
+            {/* ─── Chat stats ─── */}
+            <div>
+              <div className="text-xs font-medium text-surface-500 uppercase tracking-wider mb-2">
+                Chat actual
               </div>
-              <p className="text-xs text-surface-400">
-                {messageCount === 0
-                  ? 'Sin mensajes aún. ¡Empieza a chatear!'
-                  : `${messageCount} mensaje${messageCount !== 1 ? 's' : ''} en esta conversación`
-                }
-              </p>
+
+              <div className="p-3 rounded-xl bg-surface-800/40 border border-surface-700/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <MessageSquare className="w-4 h-4 text-accent-400" />
+                  <span className="text-sm text-surface-200">Conversación activa</span>
+                </div>
+                <p className="text-xs text-surface-400">
+                  {messageCount === 0
+                    ? 'Sin mensajes aún. ¡Empieza a chatear!'
+                    : `${messageCount} mensaje${messageCount !== 1 ? 's' : ''} en esta conversación`
+                  }
+                </p>
+              </div>
             </div>
           </div>
 

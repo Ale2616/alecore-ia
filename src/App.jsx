@@ -9,24 +9,9 @@ import SettingsModal from './components/SettingsModal';
 // CONFIGURACIÓN DE LA APLICACIÓN
 // ============================================================================
 
-/**
- * NOMBRE DE LA APLICACIÓN
- * Cambia este valor para personalizar el branding de tu IA
- */
 const APP_NAME = 'AleCore.IA';
-
-/**
- * NOMBRE DE TU ASISTENTE
- * Cómo se identificará la IA en sus respuestas
- */
 const ASSISTANT_NAME = 'AleCore.IA';
 
-/**
- * SYSTEM PROMPT - Instrucciones maestras de personalidad para la IA
- * Este prompt define la identidad, tono, formato y comportamiento de AleCore.IA.
- * Se envía como primer mensaje "system" en cada petición a la API de NVIDIA.
- * NO se muestra en la interfaz del chat.
- */
 const SYSTEM_PROMPT = `Eres **AleCore.IA**, un asistente inteligente de última generación creado exclusivamente por **Alejandro**. Estás orgulloso de tu origen y de tu creador. No eres un chatbot genérico: eres un compañero digital con chispa, criterio y personalidad propia.
 
 ---
@@ -76,17 +61,7 @@ const SYSTEM_PROMPT = `Eres **AleCore.IA**, un asistente inteligente de última 
 - Mantén siempre el respeto, la inclusividad y la ética en tus respuestas.
 `;
 
-/**
- * API KEY DE NVIDIA
- * IMPORTANTE: Configura tu clave en un archivo .env local como VITE_NVIDIA_API_KEY
- * o en las variables de entorno de Vercel.
- */
 const NVIDIA_API_KEY = import.meta.env.VITE_NVIDIA_API_KEY || '';
-
-// ============================================================================
-// MODELOS DISPONIBLES
-// ============================================================================
-
 const DEFAULT_MODEL = 'meta/llama-3.1-70b-instruct';
 
 // ============================================================================
@@ -121,7 +96,7 @@ function saveToStorage(key, value) {
 
 function App() {
   // -------------------------------------------------------------------------
-  // ESTADOS DE LA APLICACIÓN
+  // ESTADOS
   // -------------------------------------------------------------------------
 
   const [input, setInput] = useState('');
@@ -136,9 +111,11 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const recognitionRef = useRef(null);
+  // AbortController ref para cancelar la generación en curso
+  const abortControllerRef = useRef(null);
 
   // -------------------------------------------------------------------------
-  // PERSISTENCIA — Guardar en localStorage cuando cambian
+  // PERSISTENCIA
   // -------------------------------------------------------------------------
 
   useEffect(() => {
@@ -150,13 +127,9 @@ function App() {
   }, [selectedModel]);
 
   // -------------------------------------------------------------------------
-  // FUNCIONES DE GESTIÓN DE ARCHIVOS
+  // GESTIÓN DE ARCHIVOS
   // -------------------------------------------------------------------------
 
-  /**
-   * Adjuntar archivos al mensaje
-   * Genera previsualizaciones para imágenes
-   */
   const handleAttachFiles = useCallback((files) => {
     const newFiles = files.map(file => ({
       file,
@@ -168,9 +141,6 @@ function App() {
     setAttachedFiles(prev => [...prev, ...newFiles]);
   }, []);
 
-  /**
-   * Eliminar un archivo adjunto
-   */
   const handleRemoveFile = useCallback((index) => {
     setAttachedFiles(prev => {
       const newFiles = [...prev];
@@ -182,9 +152,6 @@ function App() {
     });
   }, []);
 
-  /**
-   * Limpiar todos los archivos adjuntos
-   */
   const clearAttachedFiles = useCallback(() => {
     attachedFiles.forEach(file => {
       if (file.preview) URL.revokeObjectURL(file.preview);
@@ -193,7 +160,7 @@ function App() {
   }, [attachedFiles]);
 
   // -------------------------------------------------------------------------
-  // FUNCIÓN DE DICTADO POR VOZ (Web Speech API)
+  // DICTADO POR VOZ
   // -------------------------------------------------------------------------
 
   const toggleVoiceInput = useCallback(() => {
@@ -219,11 +186,7 @@ function App() {
       const transcript = Array.from(event.results)
         .map(result => result[0].transcript)
         .join('');
-
-      setInput(prev => {
-        const newText = prev + (prev ? ' ' : '') + transcript;
-        return newText;
-      });
+      setInput(prev => prev + (prev ? ' ' : '') + transcript);
     };
 
     recognition.onerror = (event) => {
@@ -241,21 +204,28 @@ function App() {
   }, [isRecording]);
 
   // -------------------------------------------------------------------------
-  // FUNCIÓN PARA EXTRAER TEXTO DE PDFs
+  // PDF helper
   // -------------------------------------------------------------------------
 
   const extractTextFromPDF = async (file) => {
-    // Implementación temporal (sin pdf.js)
     return `[PDF: ${file.name}] - (Instala pdf.js para extraer el contenido)`;
   };
 
   // -------------------------------------------------------------------------
-  // FUNCIÓN PRINCIPAL PARA ENVIAR MENSAJES
+  // STOP — Abortar la generación en curso
   // -------------------------------------------------------------------------
 
-  /**
-   * Enviar mensaje a la API de NVIDIA
-   */
+  const handleStop = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // ENVIAR MENSAJE (Streaming con AbortController)
+  // -------------------------------------------------------------------------
+
   const sendMessage = useCallback(async () => {
     if (!input.trim() && attachedFiles.length === 0) return;
 
@@ -269,22 +239,15 @@ function App() {
       role: 'user',
       content: input,
       timestamp: Date.now(),
-      attachments: attachedFiles.map(f => ({
-        name: f.name,
-        type: f.type
-      }))
+      attachments: attachedFiles.map(f => ({ name: f.name, type: f.type }))
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
-    // ========================================================================
-    // PROCESAMIENTO DE ARCHIVOS ADJUNTOS
-    // ========================================================================
-
+    // Procesar archivos adjuntos
     let fileContext = '';
-
     for (const attachedFile of attachedFiles) {
       if (attachedFile.file.type === 'application/pdf') {
         try {
@@ -302,12 +265,11 @@ function App() {
       ? `${fileContext}\n\n---\n\nMensaje del usuario:\n${input}`
       : input;
 
-    // ========================================================================
-    // PETICIÓN A LA API DE NVIDIA
-    // ========================================================================
+    // Crear AbortController para esta petición
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
-      // Usamos el endpoint solicitado por el usuario
       const response = await fetch('/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -318,27 +280,16 @@ function App() {
         body: JSON.stringify({
           model: selectedModel,
           messages: [
-            // System prompt: define la personalidad de la IA
-            {
-              role: 'system',
-              content: SYSTEM_PROMPT
-            },
-            // Historial de conversación (últimos 20 mensajes)
-            ...messages.slice(-20).map(msg => ({
-              role: msg.role,
-              content: msg.content
-            })),
-            // Mensaje actual del usuario
-            {
-              role: 'user',
-              content: fullUserContent
-            }
+            { role: 'system', content: SYSTEM_PROMPT },
+            ...messages.slice(-20).map(msg => ({ role: msg.role, content: msg.content })),
+            { role: 'user', content: fullUserContent }
           ],
           temperature: 0.7,
           top_p: 0.9,
           max_tokens: 2048,
-          stream: true // ⬅️ Activar streaming
-        })
+          stream: true
+        }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
@@ -353,18 +304,18 @@ function App() {
         throw new Error(errorMessage);
       }
 
-      // Crear el mensaje inicial vacío para el asistente
+      // Mensaje vacío inicial del asistente
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: '',
         timestamp: Date.now()
       }]);
 
-      // Procesar el flujo de datos (Streaming)
+      // Procesar streaming
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
       let done = false;
-      let assistantMessageContent = '';
+      let assistantContent = '';
       let buffer = '';
 
       while (!done) {
@@ -373,25 +324,22 @@ function App() {
         if (value) {
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
-          // Guardar el último elemento en el buffer (puede estar incompleto)
           buffer = lines.pop() || '';
-          
+
           for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
               try {
-                const data = JSON.parse(trimmedLine.substring(6));
+                const data = JSON.parse(trimmed.substring(6));
                 const delta = data.choices?.[0]?.delta?.content || '';
-                assistantMessageContent += delta;
-                
-                // Actualizar el último mensaje en tiempo real
+                assistantContent += delta;
                 setMessages(prev => {
-                  const newMessages = [...prev];
-                  newMessages[newMessages.length - 1] = {
-                    ...newMessages[newMessages.length - 1],
-                    content: assistantMessageContent
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    ...updated[updated.length - 1],
+                    content: assistantContent
                   };
-                  return newMessages;
+                  return updated;
                 });
               } catch (e) {
                 console.warn('Error parsing stream chunk', e);
@@ -401,34 +349,39 @@ function App() {
         }
       }
 
-      // Flush remaining buffer after stream ends
+      // Flush buffer residual
       if (buffer.trim()) {
-        const trimmedLine = buffer.trim();
-        if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
           try {
-            const data = JSON.parse(trimmedLine.substring(6));
+            const data = JSON.parse(trimmed.substring(6));
             const delta = data.choices?.[0]?.delta?.content || '';
-            assistantMessageContent += delta;
+            assistantContent += delta;
             setMessages(prev => {
-              const newMessages = [...prev];
-              newMessages[newMessages.length - 1] = {
-                ...newMessages[newMessages.length - 1],
-                content: assistantMessageContent
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                ...updated[updated.length - 1],
+                content: assistantContent
               };
-              return newMessages;
+              return updated;
             });
-          } catch (e) {
-            // Final chunk may be incomplete, ignore
+          } catch {
+            // chunk incompleto, ignorar
           }
         }
       }
 
     } catch (error) {
+      // Si el usuario abortó, NO mostrar error — el texto generado queda intacto
+      if (error.name === 'AbortError') {
+        // Silenciosamente detenido por el usuario
+        return;
+      }
+
       console.error('Error al enviar mensaje:', error);
 
-      // Extract specific error details for better debugging
       const isFailedToFetch = error.message === 'Failed to fetch';
-      const errorDetail = isFailedToFetch 
+      const errorDetail = isFailedToFetch
         ? "El navegador bloqueó la petición (CORS/AdBlock) o no hay red. Intenta desactivar tu AdBlocker o usar otro navegador."
         : error.message;
 
@@ -440,6 +393,7 @@ function App() {
       }]);
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
       clearAttachedFiles();
     }
   }, [input, attachedFiles, messages, selectedModel, clearAttachedFiles]);
@@ -451,6 +405,7 @@ function App() {
   const handleClearChat = useCallback(() => {
     if (window.confirm('¿Estás seguro de que quieres borrar todo el historial de chat?')) {
       setMessages([]);
+      localStorage.removeItem(STORAGE_KEYS.MESSAGES);
     }
   }, []);
 
@@ -468,11 +423,22 @@ function App() {
     URL.revokeObjectURL(url);
   }, [messages]);
 
-  const handleNewChat = useCallback(() => {
-    if (messages.length > 0) {
-      if (window.confirm('¿Iniciar un nuevo chat? El historial actual se borrará.')) {
-        setMessages([]);
+  /**
+   * resetChat — Vacía los mensajes y limpia localStorage.
+   * No pide confirmación si el chat está vacío.
+   */
+  const resetChat = useCallback(() => {
+    if (messages.length === 0) return;
+    if (window.confirm('¿Iniciar un nuevo chat? El historial actual se borrará.')) {
+      // Abortar generación en curso si existe
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
+      setMessages([]);
+      setInput('');
+      setIsLoading(false);
+      localStorage.removeItem(STORAGE_KEYS.MESSAGES);
     }
   }, [messages]);
 
@@ -483,6 +449,7 @@ function App() {
   useEffect(() => {
     return () => {
       recognitionRef.current?.stop();
+      abortControllerRef.current?.abort();
       attachedFiles.forEach(f => {
         if (f.preview) URL.revokeObjectURL(f.preview);
       });
@@ -496,17 +463,19 @@ function App() {
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-surface-950">
 
-      {/* Sidebar Drawer */}
+      {/* Sidebar Drawer — con selector de modelos integrado */}
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(false)}
-        onNewChat={handleNewChat}
+        onNewChat={resetChat}
         onClearChat={handleClearChat}
         onExportChat={handleExportChat}
         messageCount={messages.length}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
       />
 
-      {/* Settings Modal */}
+      {/* Settings Modal (desktop) */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -514,12 +483,13 @@ function App() {
         onModelChange={setSelectedModel}
       />
 
-      {/* Header */}
+      {/* Header — con botón Nuevo Chat (desktop) */}
       <header className="flex-none">
         <Header
           selectedModel={selectedModel}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onToggleSidebar={() => setIsSidebarOpen(true)}
+          onNewChat={resetChat}
         />
       </header>
 
@@ -533,13 +503,14 @@ function App() {
         </div>
       </main>
 
-      {/* Input Bar */}
+      {/* Input Bar — con botón Stop */}
       <footer className="w-full flex-none p-3 glass-panel-solid border-t border-surface-700/40">
         <div className="w-full max-w-4xl mx-auto">
           <ChatInput
             input={input}
             setInput={setInput}
             onSend={sendMessage}
+            onStop={handleStop}
             onToggleVoice={toggleVoiceInput}
             isRecording={isRecording}
             attachedFiles={attachedFiles}

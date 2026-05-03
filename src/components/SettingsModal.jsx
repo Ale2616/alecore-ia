@@ -1,12 +1,13 @@
 import React from 'react';
-import { X, Cpu, Zap, Brain, Star, Check, Layers, Code, FastForward } from 'lucide-react';
+import { X, Cpu, Zap, Brain, Star, Check } from 'lucide-react';
 
 /**
  * SettingsModal - Modal de configuración con selector de modelos estilizado
+ * Solo 3 modelos estables de la familia Llama/Nemotron.
+ * Auto-cierre al seleccionar un modelo.
  */
 
 const MODELS = [
-  // Llama Family
   {
     value: 'meta/llama-3.1-405b-instruct',
     label: 'Llama 3.1 405B',
@@ -26,17 +27,6 @@ const MODELS = [
     icon: Star,
   },
   {
-    value: 'meta/llama-3.1-8b-instruct',
-    label: 'Llama 3.1 8B',
-    provider: 'Meta',
-    description: 'Rápido y eficiente para tareas sencillas.',
-    badge: '🏃 Rápido',
-    badgeColor: 'from-green-500 to-emerald-500',
-    icon: FastForward,
-  },
-
-  // NVIDIA Special
-  {
     value: 'nvidia/llama-3.1-nemotron-70b-instruct',
     label: 'Nemotron 70B',
     provider: 'NVIDIA',
@@ -45,80 +35,22 @@ const MODELS = [
     badgeColor: 'from-purple-500 to-pink-500',
     icon: Brain,
   },
-  {
-    value: 'nvidia/nemotron-4-340b-instruct',
-    label: 'Nemotron 4 340B',
-    provider: 'NVIDIA',
-    description: 'Alineado para generación de alta calidad y precisión.',
-    badge: '🎯 Precisión',
-    badgeColor: 'from-indigo-500 to-blue-500',
-    icon: Layers,
-  },
-
-  // Mistral / Gemma
-  {
-    value: 'mistralai/mistral-large-2-instruct',
-    label: 'Mistral Large 2',
-    provider: 'Mistral',
-    description: 'Modelo insignia de Mistral, excelente para código y razonamiento.',
-    badge: '💻 Código',
-    badgeColor: 'from-blue-400 to-cyan-500',
-    icon: Code,
-  },
-  {
-    value: 'mistralai/mixtral-8x7b-instruct-v0.1',
-    label: 'Mixtral 8x7B',
-    provider: 'Mistral',
-    description: 'Arquitectura MoE, gran rendimiento y velocidad.',
-    badge: '🔄 MoE',
-    badgeColor: 'from-teal-500 to-emerald-400',
-    icon: Layers,
-  },
-  {
-    value: 'google/gemma-2-27b-it',
-    label: 'Gemma 2 27B',
-    provider: 'Google',
-    description: 'Potente modelo abierto de Google con gran capacidad de razonamiento.',
-    badge: '🌐 Abierto',
-    badgeColor: 'from-red-500 to-orange-400',
-    icon: Star,
-  },
-  {
-    value: 'google/gemma-2-9b-it',
-    label: 'Gemma 2 9B',
-    provider: 'Google',
-    description: 'Versión ligera de Gemma 2, ideal para baja latencia.',
-    badge: '⚡ Ligero',
-    badgeColor: 'from-red-400 to-orange-300',
-    icon: FastForward,
-  },
-
-  // Eficientes
-  {
-    value: 'microsoft/phi-3-medium-4k-instruct',
-    label: 'Phi-3 Medium',
-    provider: 'Microsoft',
-    description: 'Gran capacidad de razonamiento en un tamaño reducido.',
-    badge: '🔬 Eficiente',
-    badgeColor: 'from-sky-500 to-blue-400',
-    icon: Brain,
-  },
-  {
-    value: 'microsoft/phi-3-mini-4k-instruct',
-    label: 'Phi-3 Mini',
-    provider: 'Microsoft',
-    description: 'El modelo más pequeño y veloz de la familia Phi.',
-    badge: '🚀 Ultra-Rápido',
-    badgeColor: 'from-sky-400 to-blue-300',
-    icon: FastForward,
-  },
 ];
+
+// Export for reuse in Sidebar
+export { MODELS };
 
 const SettingsModal = ({ isOpen, onClose, selectedModel, onModelChange }) => {
   if (!isOpen) return null;
 
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) onClose();
+  };
+
+  // Auto-close: seleccionar modelo y cerrar inmediatamente
+  const handleModelSelect = (modelValue) => {
+    onModelChange(modelValue);
+    onClose();
   };
 
   return (
@@ -167,7 +99,7 @@ const SettingsModal = ({ isOpen, onClose, selectedModel, onModelChange }) => {
             return (
               <button
                 key={model.value}
-                onClick={() => onModelChange(model.value)}
+                onClick={() => handleModelSelect(model.value)}
                 className={`w-full text-left p-4 rounded-xl border transition-all duration-300
                            group relative overflow-hidden
                            ${isSelected
@@ -222,7 +154,7 @@ const SettingsModal = ({ isOpen, onClose, selectedModel, onModelChange }) => {
         <div className="p-5 pt-2 border-t border-surface-700/30">
           <p className="text-[11px] text-surface-500 text-center">
             Los modelos son proporcionados por la API de NVIDIA NIM.
-            El cambio se aplica inmediatamente.
+            Toca un modelo para seleccionarlo.
           </p>
         </div>
       </div>
