@@ -78,15 +78,10 @@ const SYSTEM_PROMPT = `Eres **AleCore.IA**, un asistente inteligente de última 
 
 /**
  * API KEY DE NVIDIA
- * IMPORTANTE: Reemplaza este valor con tu API Key real de NVIDIA
- * Puedes obtenerla en: https://build.nvidia.com/
- *
- * ⚠️ ADVERTENCIA DE SEGURIDAD:
- * En producción, NUNCA expongas tu API Key en el frontend.
- * Debes crear un backend proxy que maneje las peticiones a NVIDIA.
- * Este código es solo para desarrollo/pruebas locales.
+ * IMPORTANTE: Configura tu clave en un archivo .env local como VITE_NVIDIA_API_KEY
+ * o en las variables de entorno de Vercel.
  */
-const NVIDIA_API_KEY = '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';
+const NVIDIA_API_KEY = import.meta.env.VITE_NVIDIA_API_KEY || '';
 
 // ============================================================================
 // MODELOS DISPONIBLES
@@ -264,8 +259,8 @@ function App() {
   const sendMessage = useCallback(async () => {
     if (!input.trim() && attachedFiles.length === 0) return;
 
-    if (NVIDIA_API_KEY === 'TU_API_KEY_AQUI') {
-      alert('⚠️ Configura tu API Key de NVIDIA en el código.\n\nAbre App.jsx y reemplaza:\nconst NVIDIA_API_KEY = \'TU_API_KEY_AQUI\';\n\nPor tu clave real de https://build.nvidia.com/');
+    if (!NVIDIA_API_KEY || NVIDIA_API_KEY === 'TU_API_KEY_AQUI') {
+      alert('⚠️ Configura tu API Key de NVIDIA.\n\nCrea un archivo .env y añade:\nVITE_NVIDIA_API_KEY=tu_clave_aqui');
       return;
     }
 

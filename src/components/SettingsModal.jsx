@@ -1,17 +1,18 @@
 import React from 'react';
-import { X, Cpu, Zap, Brain, Star, Check } from 'lucide-react';
+import { X, Cpu, Zap, Brain, Star, Check, Layers, Code, FastForward } from 'lucide-react';
 
 /**
  * SettingsModal - Modal de configuración con selector de modelos estilizado
  */
 
 const MODELS = [
+  // Llama Family
   {
     value: 'meta/llama-3.1-405b-instruct',
     label: 'Llama 3.1 405B',
     provider: 'Meta',
     description: 'El modelo más potente. Máxima calidad en razonamiento y generación.',
-    badge: '⚡ Más Potente',
+    badge: '⚡ Potente',
     badgeColor: 'from-amber-500 to-orange-500',
     icon: Zap,
   },
@@ -25,6 +26,17 @@ const MODELS = [
     icon: Star,
   },
   {
+    value: 'meta/llama-3.1-8b-instruct',
+    label: 'Llama 3.1 8B',
+    provider: 'Meta',
+    description: 'Rápido y eficiente para tareas sencillas.',
+    badge: '🏃 Rápido',
+    badgeColor: 'from-green-500 to-emerald-500',
+    icon: FastForward,
+  },
+
+  // NVIDIA Special
+  {
     value: 'nvidia/llama-3.1-nemotron-70b-instruct',
     label: 'Nemotron 70B',
     provider: 'NVIDIA',
@@ -32,6 +44,73 @@ const MODELS = [
     badge: '🧠 Razonamiento',
     badgeColor: 'from-purple-500 to-pink-500',
     icon: Brain,
+  },
+  {
+    value: 'nvidia/nemotron-4-340b-instruct',
+    label: 'Nemotron 4 340B',
+    provider: 'NVIDIA',
+    description: 'Alineado para generación de alta calidad y precisión.',
+    badge: '🎯 Precisión',
+    badgeColor: 'from-indigo-500 to-blue-500',
+    icon: Layers,
+  },
+
+  // Mistral / Gemma
+  {
+    value: 'mistralai/mistral-large-2-instruct',
+    label: 'Mistral Large 2',
+    provider: 'Mistral',
+    description: 'Modelo insignia de Mistral, excelente para código y razonamiento.',
+    badge: '💻 Código',
+    badgeColor: 'from-blue-400 to-cyan-500',
+    icon: Code,
+  },
+  {
+    value: 'mistralai/mixtral-8x7b-instruct-v0.1',
+    label: 'Mixtral 8x7B',
+    provider: 'Mistral',
+    description: 'Arquitectura MoE, gran rendimiento y velocidad.',
+    badge: '🔄 MoE',
+    badgeColor: 'from-teal-500 to-emerald-400',
+    icon: Layers,
+  },
+  {
+    value: 'google/gemma-2-27b-it',
+    label: 'Gemma 2 27B',
+    provider: 'Google',
+    description: 'Potente modelo abierto de Google con gran capacidad de razonamiento.',
+    badge: '🌐 Abierto',
+    badgeColor: 'from-red-500 to-orange-400',
+    icon: Star,
+  },
+  {
+    value: 'google/gemma-2-9b-it',
+    label: 'Gemma 2 9B',
+    provider: 'Google',
+    description: 'Versión ligera de Gemma 2, ideal para baja latencia.',
+    badge: '⚡ Ligero',
+    badgeColor: 'from-red-400 to-orange-300',
+    icon: FastForward,
+  },
+
+  // Eficientes
+  {
+    value: 'microsoft/phi-3-medium-4k-instruct',
+    label: 'Phi-3 Medium',
+    provider: 'Microsoft',
+    description: 'Gran capacidad de razonamiento en un tamaño reducido.',
+    badge: '🔬 Eficiente',
+    badgeColor: 'from-sky-500 to-blue-400',
+    icon: Brain,
+  },
+  {
+    value: 'microsoft/phi-3-mini-4k-instruct',
+    label: 'Phi-3 Mini',
+    provider: 'Microsoft',
+    description: 'El modelo más pequeño y veloz de la familia Phi.',
+    badge: '🚀 Ultra-Rápido',
+    badgeColor: 'from-sky-400 to-blue-300',
+    icon: FastForward,
   },
 ];
 
@@ -76,8 +155,8 @@ const SettingsModal = ({ isOpen, onClose, selectedModel, onModelChange }) => {
         </div>
 
         {/* Model Cards */}
-        <div className="p-5 space-y-3">
-          <p className="text-xs font-medium text-surface-400 uppercase tracking-wider mb-3">
+        <div className="p-5 space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
+          <p className="text-xs font-medium text-surface-400 uppercase tracking-wider mb-3 sticky top-0 bg-surface-900/80 backdrop-blur-sm z-10 py-1">
             Modelo de IA
           </p>
 
