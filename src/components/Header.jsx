@@ -1,11 +1,11 @@
 import React from 'react';
 import { Sparkles, Settings, Menu, Cpu, PlusCircle } from 'lucide-react';
+import { MODELS } from './SettingsModal';
 
 const Header = ({ selectedModel, onOpenSettings, onToggleSidebar, onNewChat }) => {
   const getModelBadge = () => {
-    if (selectedModel.includes('405b')) return 'Llama 405B';
-    if (selectedModel.includes('nemotron')) return 'Nemotron 70B';
-    if (selectedModel.includes('70b')) return 'Llama 70B';
+    const found = MODELS.find(m => m.id === selectedModel);
+    if (found) return found.label;
     return selectedModel.split('/').pop()?.split('-').slice(0, 3).join(' ') || 'AI';
   };
 

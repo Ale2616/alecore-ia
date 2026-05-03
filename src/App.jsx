@@ -3,7 +3,7 @@ import Header from './components/Header';
 import ChatHistory from './components/ChatHistory';
 import ChatInput from './components/ChatInput';
 import Sidebar from './components/Sidebar';
-import SettingsModal from './components/SettingsModal';
+import SettingsModal, { MODELS } from './components/SettingsModal';
 
 // ============================================================================
 // CONFIGURACIÓN DE LA APLICACIÓN
@@ -62,6 +62,7 @@ const SYSTEM_PROMPT = `Eres **AleCore.IA**, un asistente inteligente de última 
 `;
 
 const NVIDIA_API_KEY = import.meta.env.VITE_NVIDIA_API_KEY || '';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 const DEFAULT_MODEL = 'meta/llama-3.1-70b-instruct';
 
 // ============================================================================
@@ -229,11 +230,6 @@ function App() {
   const sendMessage = useCallback(async () => {
     if (!input.trim() && attachedFiles.length === 0) return;
 
-    if (!NVIDIA_API_KEY || NVIDIA_API_KEY === 'TU_API_KEY_AQUI') {
-      alert('⚠️ Configura tu API Key de NVIDIA.\n\nCrea un archivo .env y añade:\nVITE_NVIDIA_API_KEY=tu_clave_aqui');
-      return;
-    }
-
     // Guardar mensaje del usuario
     const userMessage = {
       role: 'user',
@@ -270,27 +266,54 @@ function App() {
     abortControllerRef.current = controller;
 
     try {
-      const response = await fetch('/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${NVIDIA_API_KEY}`,
-          'Accept': 'text/event-stream'
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...messages.slice(-20).map(msg => ({ role: msg.role, content: msg.content })),
-            { role: 'user', content: fullUserContent }
-          ],
-          temperature: 0.7,
-          top_p: 0.9,
-          max_tokens: 2048,
-          stream: true
-        }),
-        signal: controller.signal
-      });
+    // ─── Resolver proveedor del modelo seleccionado ───────────────────────────
+    const modelConfig = MODELS.find(m => m.id === selectedModel);
+    const provider = modelConfig?.provider || 'nvidia';
+
+    // ─── Configurar endpoint y headers según proveedor ────────────────────────
+    let fetchUrl, fetchHeaders;
+
+    if (provider === 'google') {
+      // Google Gemini — compatible con formato OpenAI (v1beta/openai)
+      if (!GEMINI_API_KEY) {
+        throw new Error('Falta la clave VITE_GEMINI_API_KEY en tu archivo .env');
+      }
+      fetchUrl = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+      fetchHeaders = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GEMINI_API_KEY}`,
+        'Accept': 'text/event-stream',
+      };
+    } else {
+      // NVIDIA NIM — usa el proxy Edge de Vercel para evitar timeout
+      if (!NVIDIA_API_KEY) {
+        throw new Error('Falta la clave VITE_NVIDIA_API_KEY en tu archivo .env');
+      }
+      fetchUrl = '/api/v1/chat/completions';
+      fetchHeaders = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${NVIDIA_API_KEY}`,
+        'Accept': 'text/event-stream',
+      };
+    }
+
+    const response = await fetch(fetchUrl, {
+      method: 'POST',
+      headers: fetchHeaders,
+      body: JSON.stringify({
+        model: selectedModel,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          ...messages.slice(-20).map(msg => ({ role: msg.role, content: msg.content })),
+          { role: 'user', content: fullUserContent }
+        ],
+        temperature: 0.7,
+        top_p: 0.9,
+        max_tokens: 2048,
+        stream: true
+      }),
+      signal: controller.signal
+    });
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');

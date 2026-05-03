@@ -90,13 +90,13 @@ const Sidebar = ({
 
               <div className="space-y-2">
                 {MODELS.map((model) => {
-                  const isSelected = selectedModel === model.value;
+                  const isSelected = selectedModel === model.id;
                   const Icon = model.icon;
 
                   return (
                     <button
-                      key={model.value}
-                      onClick={() => handleModelSelect(model.value)}
+                      key={model.id}
+                      onClick={() => handleModelSelect(model.id)}
                       className={`w-full text-left p-3 rounded-xl border transition-all duration-200
                                  ${isSelected
                                    ? 'border-accent-500/60 bg-accent-500/10'
@@ -117,7 +117,7 @@ const Sidebar = ({
                             {model.label}
                           </span>
                           <span className="text-[10px] text-surface-500 block truncate">
-                            {model.provider}
+                            {model.providerLabel}
                           </span>
                         </div>
                         {isSelected && (
