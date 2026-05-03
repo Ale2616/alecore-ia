@@ -312,7 +312,7 @@ function App() {
     // ========================================================================
 
     try {
-      const response = await fetch('/api/v1/chat/completions', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -365,9 +365,15 @@ function App() {
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
 
+      // Extract specific error details for better debugging
+      const isFailedToFetch = error.message === 'Failed to fetch';
+      const errorDetail = isFailedToFetch 
+        ? "El navegador bloqueó la petición (CORS/AdBlock) o no hay red. Intenta desactivar tu AdBlocker o usar otro navegador."
+        : error.message;
+
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `⚠️ Error: ${error.message || 'No se pudo conectar con la API de NVIDIA.'}\n\nVerifica:\n1. Tu API Key es válida\n2. El modelo seleccionado está disponible\n3. Tienes conexión a internet`,
+        content: `⚠️ **Error de conexión**: ${errorDetail}\n\n**Detalles técnicos:**\n\`${error.name}: ${error.message}\`\n\nVerifica:\n1. Si usas AdBlock/Brave Shields, desactívalo temporalmente.\n2. Tu API Key es válida\n3. Tienes conexión a internet`,
         timestamp: Date.now(),
         isError: true
       }]);
