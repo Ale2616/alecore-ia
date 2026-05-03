@@ -1,16 +1,11 @@
 import React from 'react';
 import ChatMessage from './ChatMessage';
-import { Trash2, Download, MessageSquare } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 /**
- * ChatHistory - Componente para mostrar el historial de mensajes
- *
- * @param {array} messages - Array de mensajes
- * @param {boolean} isLoading - Estado de carga
- * @param {function} onClearChat - Función para limpiar el chat
- * @param {function} onExportChat - Función para exportar el chat
+ * ChatHistory - Área de mensajes con empty state premium y auto-scroll
  */
-const ChatHistory = ({ messages, isLoading, onClearChat, onExportChat }) => {
+const ChatHistory = ({ messages, isLoading }) => {
   const messagesEndRef = React.useRef(null);
 
   // Auto-scroll al último mensaje
@@ -21,26 +16,52 @@ const ChatHistory = ({ messages, isLoading, onClearChat, onExportChat }) => {
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-6">
       {messages.length === 0 ? (
-        /* Estado vacío - Sin mensajes */
+        /* ── Empty State ────────────────────────────────────────────── */
         <div className="flex flex-col items-center justify-center h-full
-                        text-center space-y-4">
-          <div className="w-20 h-20 rounded-full bg-dark-800
-                          flex items-center justify-center">
-            <MessageSquare className="w-10 h-10 text-dark-500" />
+                        text-center space-y-6 animate-fade-in">
+
+          {/* Animated icon */}
+          <div className="relative">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-accent-500/20 to-purple-500/20
+                            border border-accent-500/20 flex items-center justify-center
+                            animate-float shadow-glow">
+              <Sparkles className="w-10 h-10 text-accent-400" />
+            </div>
+            {/* Glow ring */}
+            <div className="absolute inset-0 rounded-2xl animate-glow-pulse" />
           </div>
-          <div>
-            <h3 className="text-lg font-medium text-dark-200">
-              ¡Bienvenido a AleCore.IA!
+
+          <div className="space-y-2 max-w-sm">
+            <h3 className="text-xl font-bold text-gradient">
+              ¡Hola! Soy AleCore.IA
             </h3>
-            <p className="text-dark-400 mt-1 max-w-md">
-              Comienza una conversación con tu asistente personal.
-              Haz una pregunta o comparte un archivo para empezar.
+            <p className="text-sm text-surface-400 leading-relaxed">
+              Tu asistente inteligente creado por Alejandro.
+              Pregúntame lo que quieras — estoy aquí para ayudarte. 🚀
             </p>
+          </div>
+
+          {/* Suggestion chips */}
+          <div className="flex flex-wrap justify-center gap-2 mt-2">
+            {[
+              '💡 ¿Qué puedes hacer?',
+              '🧠 Explícame algo complejo',
+              '💻 Ayúdame con código',
+            ].map((suggestion) => (
+              <span
+                key={suggestion}
+                className="px-3 py-1.5 text-xs text-surface-300
+                           bg-surface-800/60 border border-surface-700/40
+                           rounded-full"
+              >
+                {suggestion}
+              </span>
+            ))}
           </div>
         </div>
       ) : (
-        /* Lista de mensajes */
-        <div className="space-y-6">
+        /* ── Messages List ──────────────────────────────────────────── */
+        <div className="space-y-5">
           {messages.map((message, index) => (
             <ChatMessage
               key={index}
@@ -49,7 +70,7 @@ const ChatHistory = ({ messages, isLoading, onClearChat, onExportChat }) => {
             />
           ))}
 
-          {/* Indicador de "escribiendo..." */}
+          {/* Typing indicator */}
           {isLoading && (
             <ChatMessage
               message={{ role: 'assistant', content: '', timestamp: Date.now() }}
@@ -57,7 +78,6 @@ const ChatHistory = ({ messages, isLoading, onClearChat, onExportChat }) => {
             />
           )}
 
-          {/* Referencia para auto-scroll */}
           <div ref={messagesEndRef} />
         </div>
       )}

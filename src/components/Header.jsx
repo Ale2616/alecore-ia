@@ -1,63 +1,74 @@
 import React from 'react';
-import { Sparkles, Settings, Info } from 'lucide-react';
-import ModelSelector from './ModelSelector';
+import { Sparkles, Settings, Menu, Cpu } from 'lucide-react';
 
 /**
- * Header - Componente de cabecera con selector de modelos
- *
- * @param {string} selectedModel - Modelo seleccionado
- * @param {function} onModelChange - Callback de cambio de modelo
+ * Header - Cabecera glassmorphism con logo, badge de modelo y botones
  */
-const Header = ({ selectedModel, onModelChange }) => {
+const Header = ({ selectedModel, onOpenSettings, onToggleSidebar }) => {
+  // Get short model name for the badge
+  const getModelBadge = () => {
+    if (selectedModel.includes('405b')) return 'Llama 405B';
+    if (selectedModel.includes('nemotron')) return 'Nemotron 70B';
+    if (selectedModel.includes('70b')) return 'Llama 70B';
+    return selectedModel.split('/').pop()?.split('-').slice(0, 3).join(' ') || 'AI';
+  };
+
   return (
-    <header className="glass-effect border-b border-dark-700 px-4 py-3">
+    <header className="glass-panel-solid border-b border-surface-700/40 px-4 py-3">
       <div className="max-w-6xl mx-auto flex items-center justify-between">
-        {/* Logo y título */}
+
+        {/* Left: Menu + Logo */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br
-                          from-primary-500 to-purple-600
-                          flex items-center justify-center
-                          shadow-lg shadow-primary-500/20">
-            <Sparkles className="w-6 h-6 text-white" />
+          {/* Hamburger for mobile */}
+          <button
+            onClick={onToggleSidebar}
+            className="btn-ghost lg:hidden"
+            aria-label="Abrir menú"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          {/* Logo */}
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600
+                          flex items-center justify-center shadow-glow-sm
+                          animate-glow-pulse">
+            <Sparkles className="w-5 h-5 text-white" />
           </div>
 
           <div>
-            <h1 className="text-xl font-bold text-dark-100">
-              AleCore.IA
+            <h1 className="text-lg font-bold text-surface-50 tracking-tight">
+              AleCore<span className="text-gradient">.IA</span>
             </h1>
-            <p className="text-xs text-dark-400 hidden sm:block">
-              Tu asistente personal inteligente
+            <p className="text-[11px] text-surface-400 hidden sm:block">
+              Asistente inteligente por Alejandro
             </p>
           </div>
         </div>
 
-        {/* Selector de modelos (centro) */}
-        <div className="flex-1 flex justify-center px-4">
-          <ModelSelector
-            selectedModel={selectedModel}
-            onModelChange={onModelChange}
-          />
-        </div>
+        {/* Center: Model badge */}
+        <button
+          onClick={onOpenSettings}
+          className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg
+                     bg-surface-800/60 border border-surface-700/40
+                     hover:border-accent-500/30 hover:bg-surface-700/40
+                     transition-all duration-200 group"
+          title="Cambiar modelo"
+        >
+          <Cpu className="w-3.5 h-3.5 text-accent-400 group-hover:text-accent-300" />
+          <span className="text-xs font-medium text-surface-300 group-hover:text-surface-100">
+            {getModelBadge()}
+          </span>
+        </button>
 
-        {/* Botones de la derecha (placeholder para futuras funcionalidades) */}
-        <div className="flex items-center gap-2">
-          <button
-            className="p-2 text-dark-400 hover:text-dark-200
-                       hover:bg-dark-800 rounded-lg transition-all duration-200"
-            aria-label="Información"
-            title="Información"
-          >
-            <Info className="w-5 h-5" />
-          </button>
-          <button
-            className="p-2 text-dark-400 hover:text-dark-200
-                       hover:bg-dark-800 rounded-lg transition-all duration-200"
-            aria-label="Configuración"
-            title="Configuración"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
+        {/* Right: Settings */}
+        <button
+          onClick={onOpenSettings}
+          className="btn-ghost"
+          aria-label="Configuración"
+          title="Configuración"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
       </div>
     </header>
   );

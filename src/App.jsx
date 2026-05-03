@@ -1,7 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Header from './components/Header';
 import ChatHistory from './components/ChatHistory';
 import ChatInput from './components/ChatInput';
+import Sidebar from './components/Sidebar';
+import SettingsModal from './components/SettingsModal';
 
 // ============================================================================
 // CONFIGURACIÓN DE LA APLICACIÓN
@@ -93,6 +95,32 @@ const NVIDIA_API_KEY = 'nvapi-xttPnp13Z5oyCgzFPkVS70gRW1cAsTfJyTxbfjecdMs3yFgH-f
 const DEFAULT_MODEL = 'meta/llama-3.1-70b-instruct';
 
 // ============================================================================
+// HELPERS — localStorage
+// ============================================================================
+
+const STORAGE_KEYS = {
+  MESSAGES: 'alecore_messages',
+  MODEL: 'alecore_model',
+};
+
+function loadFromStorage(key, fallback) {
+  try {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveToStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // localStorage full or unavailable — silent fail
+  }
+}
+
+// ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
 
@@ -101,26 +129,30 @@ function App() {
   // ESTADOS DE LA APLICACIÓN
   // -------------------------------------------------------------------------
 
-  // Mensaje actual en el input
   const [input, setInput] = useState('');
-
-  // Historial de mensajes
-  const [messages, setMessages] = useState([]);
-
-  // Modelo seleccionado
-  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL);
-
-  // Estado de carga (IA respondiendo)
+  const [messages, setMessages] = useState(() => loadFromStorage(STORAGE_KEYS.MESSAGES, []));
+  const [selectedModel, setSelectedModel] = useState(() => loadFromStorage(STORAGE_KEYS.MODEL, DEFAULT_MODEL));
   const [isLoading, setIsLoading] = useState(false);
-
-  // Archivos adjuntos
   const [attachedFiles, setAttachedFiles] = useState([]);
-
-  // Estado del dictado por voz
   const [isRecording, setIsRecording] = useState(false);
 
-  // Referencia para la API de reconocimiento de voz
+  // UI states
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   const recognitionRef = useRef(null);
+
+  // -------------------------------------------------------------------------
+  // PERSISTENCIA — Guardar en localStorage cuando cambian
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.MESSAGES, messages);
+  }, [messages]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.MODEL, selectedModel);
+  }, [selectedModel]);
 
   // -------------------------------------------------------------------------
   // FUNCIONES DE GESTIÓN DE ARCHIVOS
@@ -136,7 +168,6 @@ function App() {
       name: file.name,
       type: file.type,
       size: file.size,
-      // Generar preview para imágenes
       preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
     }));
     setAttachedFiles(prev => [...prev, ...newFiles]);
@@ -148,7 +179,6 @@ function App() {
   const handleRemoveFile = useCallback((index) => {
     setAttachedFiles(prev => {
       const newFiles = [...prev];
-      // Liberar URL del preview
       if (newFiles[index].preview) {
         URL.revokeObjectURL(newFiles[index].preview);
       }
@@ -171,33 +201,25 @@ function App() {
   // FUNCIÓN DE DICTADO POR VOZ (Web Speech API)
   // -------------------------------------------------------------------------
 
-  /**
-   * Alternar el estado del dictado por voz
-   */
   const toggleVoiceInput = useCallback(() => {
     if (isRecording) {
-      // Detener grabación
       recognitionRef.current?.stop();
       setIsRecording(false);
       return;
     }
 
-    // Verificar soporte del navegador
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       alert('Tu navegador no soporta el dictado por voz. Usa Chrome, Edge o Safari.');
       return;
     }
 
-    // Crear instancia de reconocimiento
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
 
-    // Configuración
     recognition.lang = 'es-ES';
     recognition.continuous = false;
     recognition.interimResults = true;
 
-    // Manejar resultados
     recognition.onresult = (event) => {
       const transcript = Array.from(event.results)
         .map(result => result[0].transcript)
@@ -209,18 +231,15 @@ function App() {
       });
     };
 
-    // Manejar errores
     recognition.onerror = (event) => {
       console.error('Error en el reconocimiento de voz:', event.error);
       setIsRecording(false);
     };
 
-    // Manejar fin
     recognition.onend = () => {
       setIsRecording(false);
     };
 
-    // Iniciar grabación
     recognition.start();
     recognitionRef.current = recognition;
     setIsRecording(true);
@@ -230,50 +249,7 @@ function App() {
   // FUNCIÓN PARA EXTRAER TEXTO DE PDFs
   // -------------------------------------------------------------------------
 
-  /**
-   * Extraer texto de un archivo PDF usando pdf.js
-   *
-   * ⚠️ INTEGRACIÓN CON PDF.JS:
-   * Para habilitar esta funcionalidad:
-   *
-   * 1. Instala la librería:
-   *    npm install pdfjs-dist
-   *
-   * 2. Importa en este archivo:
-   *    import * as pdfjs from 'pdfjs-dist';
-   *
-   * 3. Configura el worker:
-   *    pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
-   *
-   * 4. Descomenta el código de abajo
-   */
   const extractTextFromPDF = async (file) => {
-    // ========================================================================
-    // CÓDIGO DE INTEGRACIÓN CON PDF.JS - DESCOMENTAR TRAS INSTALAR
-    // ========================================================================
-    /*
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-
-      let fullText = '';
-
-      // Extraer texto de cada página
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += `[Página ${i}]\n${pageText}\n\n`;
-      }
-
-      return fullText;
-    } catch (error) {
-      console.error('Error al extraer texto del PDF:', error);
-      throw new Error('No se pudo procesar el archivo PDF');
-    }
-    */
-    // ========================================================================
-
     // Implementación temporal (sin pdf.js)
     return `[PDF: ${file.name}] - (Instala pdf.js para extraer el contenido)`;
   };
@@ -284,13 +260,10 @@ function App() {
 
   /**
    * Enviar mensaje a la API de NVIDIA
-   * Esta función construye y ejecuta la petición a la API
    */
   const sendMessage = useCallback(async () => {
-    // Validar que haya contenido para enviar
     if (!input.trim() && attachedFiles.length === 0) return;
 
-    // Validar que la API Key esté configurada
     if (NVIDIA_API_KEY === 'TU_API_KEY_AQUI') {
       alert('⚠️ Configura tu API Key de NVIDIA en el código.\n\nAbre App.jsx y reemplaza:\nconst NVIDIA_API_KEY = \'TU_API_KEY_AQUI\';\n\nPor tu clave real de https://build.nvidia.com/');
       return;
@@ -301,7 +274,6 @@ function App() {
       role: 'user',
       content: input,
       timestamp: Date.now(),
-      // Incluir información de archivos adjuntos
       attachments: attachedFiles.map(f => ({
         name: f.name,
         type: f.type
@@ -318,7 +290,6 @@ function App() {
 
     let fileContext = '';
 
-    // Procesar archivos PDF para extraer texto
     for (const attachedFile of attachedFiles) {
       if (attachedFile.file.type === 'application/pdf') {
         try {
@@ -328,14 +299,10 @@ function App() {
           console.error('Error procesando PDF:', error);
         }
       } else if (attachedFile.file.type.startsWith('image/')) {
-        // Para imágenes, añadimos una nota contextual
-        // ⚠️ NOTA: La API de NVIDIA con visión requiere un endpoint diferente
-        // que acepta imágenes en base64. Esto es un placeholder.
         fileContext += `\n[Imagen adjunta: ${attachedFile.name}]\n`;
       }
     }
 
-    // Construir el mensaje completo incluyendo contexto de archivos
     const fullUserContent = fileContext
       ? `${fileContext}\n\n---\n\nMensaje del usuario:\n${input}`
       : input;
@@ -343,11 +310,8 @@ function App() {
     // ========================================================================
     // PETICIÓN A LA API DE NVIDIA
     // ========================================================================
-    // Documentación oficial: https://docs.api.nvidia.com/nim/reference/llm-apis
-    // Endpoint: https://integrate.api.nvidia.com/v1/chat/completions
 
     try {
-      // Usar el proxy de Vite para evitar problemas de CORS
       const response = await fetch('/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -374,15 +338,13 @@ function App() {
               content: fullUserContent
             }
           ],
-          // Parámetros opcionales de generación
-          temperature: 0.7,      // Creatividad (0-1)
-          top_p: 0.9,            // Muestreo por núcleo
-          max_tokens: 2048,      // Máximo de tokens en respuesta
-          stream: false          // Streaming (implementar aparte si se desea)
+          temperature: 0.7,
+          top_p: 0.9,
+          max_tokens: 2048,
+          stream: false
         })
       });
 
-      // Manejar errores HTTP
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
@@ -391,13 +353,9 @@ function App() {
         );
       }
 
-      // Parsear respuesta
       const data = await response.json();
-
-      // Extraer respuesta de la IA
       const aiContent = data.choices?.[0]?.message?.content || 'No se recibió respuesta.';
 
-      // Añadir mensaje de la IA al historial
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: aiContent,
@@ -407,7 +365,6 @@ function App() {
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
 
-      // Mostrar mensaje de error en el chat
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: `⚠️ Error: ${error.message || 'No se pudo conectar con la API de NVIDIA.'}\n\nVerifica:\n1. Tu API Key es válida\n2. El modelo seleccionado está disponible\n3. Tienes conexión a internet`,
@@ -424,18 +381,12 @@ function App() {
   // FUNCIONES UTILITARIAS
   // -------------------------------------------------------------------------
 
-  /**
-   * Limpiar todo el historial de chat
-   */
   const handleClearChat = useCallback(() => {
     if (window.confirm('¿Estás seguro de que quieres borrar todo el historial de chat?')) {
       setMessages([]);
     }
   }, []);
 
-  /**
-   * Exportar chat como archivo de texto
-   */
   const handleExportChat = useCallback(() => {
     const chatText = messages.map(msg =>
       `[${new Date(msg.timestamp).toLocaleString()}] ${msg.role.toUpperCase()}:\n${msg.content}\n`
@@ -445,20 +396,26 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nexusai-chat-${new Date().toISOString().split('T')[0]}.txt`;
+    a.download = `alecore-chat-${new Date().toISOString().split('T')[0]}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }, [messages]);
 
+  const handleNewChat = useCallback(() => {
+    if (messages.length > 0) {
+      if (window.confirm('¿Iniciar un nuevo chat? El historial actual se borrará.')) {
+        setMessages([]);
+      }
+    }
+  }, [messages]);
+
   // -------------------------------------------------------------------------
-  // CLEANUP - Liberar recursos al desmontar
+  // CLEANUP
   // -------------------------------------------------------------------------
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
-      // Detener grabación si está activa
       recognitionRef.current?.stop();
-      // Liberar previews de imágenes
       attachedFiles.forEach(f => {
         if (f.preview) URL.revokeObjectURL(f.preview);
       });
@@ -470,33 +427,48 @@ function App() {
   // -------------------------------------------------------------------------
 
   return (
-    // Contenedor principal: anclado a los 4 bordes de la pantalla
-    // Layout de aplicación nativa estricto
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-gray-900">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-surface-950">
 
-      {/* Cabecera: tamaño fijo, no se aplasta */}
-      <header className="flex-none glass-effect border-b border-gray-700">
+      {/* Sidebar Drawer */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen(false)}
+        onNewChat={handleNewChat}
+        onClearChat={handleClearChat}
+        onExportChat={handleExportChat}
+        messageCount={messages.length}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+      />
+
+      {/* Header */}
+      <header className="flex-none">
         <Header
           selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onToggleSidebar={() => setIsSidebarOpen(true)}
         />
       </header>
 
-      {/* Área central de mensajes: scroll independiente */}
+      {/* Chat Area */}
       <main className="flex-1 overflow-y-auto w-full p-4">
-        <div className="w-full max-w-6xl mx-auto">
+        <div className="w-full max-w-4xl mx-auto h-full">
           <ChatHistory
             messages={messages}
             isLoading={isLoading}
-            onClearChat={handleClearChat}
-            onExportChat={handleExportChat}
           />
         </div>
       </main>
 
-      {/* Barra de texto: anclada abajo, sin márgenes ni bordes redondeados */}
-      <footer className="w-full flex-none p-3 bg-gray-800 border-t border-gray-700">
-        <div className="w-full max-w-6xl mx-auto">
+      {/* Input Bar */}
+      <footer className="w-full flex-none p-3 glass-panel-solid border-t border-surface-700/40">
+        <div className="w-full max-w-4xl mx-auto">
           <ChatInput
             input={input}
             setInput={setInput}
