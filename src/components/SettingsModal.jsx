@@ -54,17 +54,6 @@ const MODELS = [
     badgeColor: 'from-blue-500 to-indigo-500',
     icon: Sparkles,
   },
-  {
-    id: 'gemini-1.5-flash',
-    label: 'Gemini 1.5 Flash',
-    name: 'Gemini 1.5 Flash (Google)',
-    provider: 'google',
-    providerLabel: 'Google AI',
-    description: 'Rápido y eficiente. Ideal para conversación fluida.',
-    badge: '⚡ Rápido',
-    badgeColor: 'from-teal-500 to-cyan-400',
-    icon: Zap,
-  },
 ];
 
 // Exportar para reutilizar en Sidebar y App.jsx

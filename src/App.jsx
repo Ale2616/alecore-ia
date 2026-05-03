@@ -285,11 +285,11 @@ function App() {
         'Accept': 'text/event-stream',
       };
     } else {
-      // NVIDIA NIM — usa el proxy Edge de Vercel para evitar timeout
+      // NVIDIA NIM — conexión directa (sin proxy), streaming nativo del navegador
       if (!NVIDIA_API_KEY) {
         throw new Error('Falta la clave VITE_NVIDIA_API_KEY en tu archivo .env');
       }
-      fetchUrl = '/api/v1/chat/completions';
+      fetchUrl = 'https://integrate.api.nvidia.com/v1/chat/completions';
       fetchHeaders = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${NVIDIA_API_KEY}`,
