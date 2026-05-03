@@ -312,7 +312,8 @@ function App() {
     // ========================================================================
 
     try {
-      const response = await fetch('/api/chat', {
+      // Usamos el endpoint solicitado por el usuario
+      const response = await fetch('/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -327,7 +328,7 @@ function App() {
               role: 'system',
               content: SYSTEM_PROMPT
             },
-            // Historial de conversación (últimos 20 mensajes para no exceder límites)
+            // Historial de conversación (últimos 20 mensajes)
             ...messages.slice(-20).map(msg => ({
               role: msg.role,
               content: msg.content
@@ -341,7 +342,7 @@ function App() {
           temperature: 0.7,
           top_p: 0.9,
           max_tokens: 2048,
-          stream: false
+          stream: true // ⬅️ Activar streaming
         })
       });
 
@@ -353,14 +354,47 @@ function App() {
         );
       }
 
-      const data = await response.json();
-      const aiContent = data.choices?.[0]?.message?.content || 'No se recibió respuesta.';
-
+      // Crear el mensaje inicial vacío para el asistente
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: aiContent,
+        content: '',
         timestamp: Date.now()
       }]);
+
+      // Procesar el flujo de datos (Streaming)
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let done = false;
+      let assistantMessageContent = '';
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          // Los chunks de Server-Sent Events (SSE) vienen separados por \n\n
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+              try {
+                const data = JSON.parse(line.substring(6));
+                const delta = data.choices?.[0]?.delta?.content || '';
+                assistantMessageContent += delta;
+                
+                // Actualizar el último mensaje en tiempo real
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  newMessages[newMessages.length - 1].content = assistantMessageContent;
+                  return newMessages;
+                });
+              } catch (e) {
+                console.warn('Error parsing stream chunk', e);
+              }
+            }
+          }
+        }
+      }
 
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
