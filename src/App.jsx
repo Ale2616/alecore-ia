@@ -270,33 +270,6 @@ function App() {
     const modelConfig = MODELS.find(m => m.id === selectedModel);
     const provider = modelConfig?.provider || 'nvidia';
 
-    // ─── Configurar endpoint y headers según proveedor ────────────────────────
-    let fetchUrl, fetchHeaders;
-
-    if (provider === 'google') {
-      // Google Gemini — compatible con formato OpenAI (v1beta/openai)
-      if (!GEMINI_API_KEY) {
-        throw new Error('Falta la clave VITE_GEMINI_API_KEY en tu archivo .env');
-      }
-      fetchUrl = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-      fetchHeaders = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GEMINI_API_KEY}`,
-        'Accept': 'text/event-stream',
-      };
-    } else {
-      // NVIDIA NIM — conexión directa (sin proxy), streaming nativo del navegador
-      if (!NVIDIA_API_KEY) {
-        throw new Error('Falta la clave VITE_NVIDIA_API_KEY en tu archivo .env');
-      }
-      fetchUrl = 'https://integrate.api.nvidia.com/v1/chat/completions';
-      fetchHeaders = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${NVIDIA_API_KEY}`,
-        'Accept': 'text/event-stream',
-      };
-    }
-
     // ─── Preparar payload condicional ─────────────────────────────────────────
     // Limpiar estrictamente los mensajes a solo { role, content } para evitar el Error 400
     const cleanMessages = [
@@ -307,14 +280,12 @@ function App() {
 
     let bodyPayload;
     if (provider === 'google') {
-      // Gemini es estricto y rechaza parámetros extra en este endpoint
       bodyPayload = {
         model: selectedModel,
         messages: cleanMessages,
         stream: true
       };
     } else {
-      // NVIDIA acepta más parámetros para ajuste fino
       bodyPayload = {
         model: selectedModel,
         messages: cleanMessages,
@@ -323,6 +294,23 @@ function App() {
         max_tokens: 2048,
         stream: true
       };
+    }
+
+    // Volvemos a usar el PROXY Edge de Vercel para evitar el error CORS
+    // Pasamos el proveedor en el header X-Provider para que el proxy sepa a dónde rutear
+    const fetchUrl = '/api/v1/chat/completions';
+    const fetchHeaders = {
+      'Content-Type': 'application/json',
+      'Accept': 'text/event-stream',
+      'X-Provider': provider
+    };
+
+    // Si tenemos las llaves en el frontend (.env local), las enviamos. 
+    // En producción, el proxy debería leerlas de process.env.
+    if (provider === 'nvidia' && NVIDIA_API_KEY) {
+      fetchHeaders['Authorization'] = `Bearer ${NVIDIA_API_KEY}`;
+    } else if (provider === 'google' && GEMINI_API_KEY) {
+      fetchHeaders['Authorization'] = `Bearer ${GEMINI_API_KEY}`;
     }
 
     const response = await fetch(fetchUrl, {

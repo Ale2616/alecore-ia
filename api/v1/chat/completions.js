@@ -10,7 +10,7 @@ export default async function handler(req) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Provider',
   };
 
   // CORS preflight
@@ -26,11 +26,19 @@ export default async function handler(req) {
   }
 
   try {
+    const provider = req.headers.get('X-Provider') || 'nvidia';
     const body = await req.json();
     const isStreaming = body.stream === true;
 
-    const nvidiaResponse = await fetch(
-      'https://integrate.api.nvidia.com/v1/chat/completions',
+    let targetUrl;
+    if (provider === 'google') {
+      targetUrl = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+    } else {
+      targetUrl = 'https://integrate.api.nvidia.com/v1/chat/completions';
+    }
+
+    const aiResponse = await fetch(
+      targetUrl,
       {
         method: 'POST',
         headers: {
@@ -42,17 +50,17 @@ export default async function handler(req) {
       }
     );
 
-    if (!nvidiaResponse.ok) {
-      const errorText = await nvidiaResponse.text();
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
       return new Response(errorText, {
-        status: nvidiaResponse.status,
+        status: aiResponse.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // ----- Non-streaming: return JSON directly -----
     if (!isStreaming) {
-      const data = await nvidiaResponse.text();
+      const data = await aiResponse.text();
       return new Response(data, {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -61,7 +69,7 @@ export default async function handler(req) {
 
     // ----- Streaming: pipe the SSE body straight through -----
     // This keeps the connection alive chunk-by-chunk, preventing timeouts.
-    return new Response(nvidiaResponse.body, {
+    return new Response(aiResponse.body, {
       status: 200,
       headers: {
         ...corsHeaders,
